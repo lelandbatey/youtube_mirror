@@ -18,8 +18,14 @@
   background-color: white;
   color: black;
 }
+i.material-icons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 3%;
+}
 .col > .card {
-  padding: 0 0.75rem;
+  padding: 0.75rem 0.75rem;
 }
     </style>
   </head>
@@ -36,11 +42,11 @@
     </div>
     <div class="container">
       <div class="row">
-        <div class="col s6">
+        <div class="col s12 l6">
           <div class="card">
             <form>
-              <div class="input-field">
-                <i class="material-icons prefix" style="color: #9e9e9e; margin-left: 0.4em; margin-top: 0.4em;">file_download</i>
+              <div class="input-field" style="margin-top: 0;">
+                <i class="material-icons prefix" style="color: #9e9e9e;">file_download</i>
                 <input class="" id="urlinput" type="search" placeholder="Video URL" required style="width: calc(100% - 45px - 15px - 0.4em)">
               </div>
             </form>
@@ -50,7 +56,7 @@
 
           </div>
           <div class="card" >
-            <h4 class="center-align" style="padding: 1.14rem 0 0.912rem 0;">Downloads in progress</h4>
+            <h4 class="center-align">Downloads in progress</h4>
             <div id="downloading">
               <p>
               Nothing here right now...
@@ -58,7 +64,7 @@
             </div>
           </div>
         </div>
-        <div class="card col s6">
+        <div class="card col s12 l6">
           {{vidlinks|safe}}
         </div>
       </div>

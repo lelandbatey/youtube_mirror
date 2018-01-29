@@ -88,7 +88,6 @@ def make_vidupdater(url):
     downloaded, it's status is removed from DL_STATUSES.'''
 
     def update_status(data):
-        print("update?")
         global DL_STATUSES
         DL_STATUSES[url] = data
         if data['status'] == 'finished':
