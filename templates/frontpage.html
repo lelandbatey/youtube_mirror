@@ -1,0 +1,135 @@
+<!doctype html>
+<html class="white">
+  <head>
+    <title>Download Videos</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.98.2/css/materialize.min.css"> -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.css">
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Lato:400,700" rel="stylesheet">
+    <style type="text/css">
+.input-field input[type=search] {
+  padding-left: 1rem;
+  background-color: white;
+  color: black;
+}
+.col > .card {
+  padding: 0 0.75rem;
+}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+        <h1 class="center-align black-text tune" id="title">
+          Video Downloader
+        </h1>
+        <div class="row center">
+          <h5 class="header center black-text">
+            Download videos, and view existing videos.
+          </h5>
+        </div>
+    </div>
+    <div class="container">
+      <div class="row">
+        <div class="col s6">
+          <div class="card">
+            <form>
+              <div class="input-field">
+                <i class="material-icons prefix" style="color: #9e9e9e; margin-left: 0.4em; margin-top: 0.4em;">file_download</i>
+                <input class="" id="urlinput" type="search" placeholder="Video URL" required style="width: calc(100% - 45px - 15px - 0.4em)">
+              </div>
+            </form>
+            <div style="display: flex; justify-content: flex-end;">
+              <a class="waves-effect waves-light btn" id="downloadbtn">download</a>
+            </div>
+
+          </div>
+          <div class="card" >
+            <h4 class="center-align" style="padding: 1.14rem 0 0.912rem 0;">Downloads in progress</h4>
+            <div id="downloading">
+              <p>
+              Nothing here right now...
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="card col s6">
+          {{vidlinks|safe}}
+        </div>
+      </div>
+    </div>
+  </body>
+  <script>
+$("#downloadbtn").on('click', ()=>{
+  startDownload();
+});
+$('#urlinput').keydown((e)=>{
+  if (e.keyCode == 13) {
+    e.preventDefault();
+    startDownload();
+  };
+});
+
+var CHECKTIME = 1000;
+
+function startDownload(){
+  let url = $('#urlinput').val()
+  $.ajax({
+    url: "/api/start_download",
+    data: JSON.stringify({'url':url}),
+    'contentType': 'application/json',
+    method: 'POST'
+  }).done(()=>{
+    console.log("We sent the url to be downloaded", url);
+  }).fail(()=>{
+    alert("Sending the url didn't work");
+  });
+}
+function updateDownloadStatus() {
+  let statusDiv = $('#downloading');
+  $.ajax({
+    url: '/api/current_downloads'
+  }).done((data) => {
+    console.log(data);
+    let newHtml = "";
+    if (!$.isEmptyObject(data)){
+      CHECKTIME = 250;
+      for (key in data) {
+        let val = data[key];
+        if ($.isEmptyObject(val)){
+          break;
+        }
+
+        let pieces = val['filename'].split('/');
+        let filename = pieces[pieces.length-1];
+        let progressHtml = `
+          <div class="section">
+          <h6>${filename}</h6>
+          <p>Time till complete: ${val['_eta_str']}
+          <div class="progress">
+            <div class="determinate" style="width: ${val['_percent_str']}"></div>
+          </div>
+          </div>`;
+        newHtml += progressHtml;
+      }
+      statusDiv.html(newHtml);
+    } else {
+      CHECKTIME = 1000;
+      statusDiv.html("<p> Nothing downloading right now...</p>");
+    }
+    window.setTimeout(updateDownloadStatus, CHECKTIME);
+  });
+}
+
+function main() {
+  updateDownloadStatus();
+}
+
+$(main);
+  </script>
+</html>
