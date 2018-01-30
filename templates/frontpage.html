@@ -162,7 +162,7 @@ function registerDeleteHandlers() {
   let rows = $('#existing_videos > table > tbody > tr');
   rows.each((index, row) => {
     let delicon = $($(row).find('td[filename]')[0]);
-    delicon.on('click', ()=>{
+    delicon.off().on('click', ()=>{
       window.delicon = delicon;
       let filename = delicon[0].attributes['filename'].value;
       $.ajax({

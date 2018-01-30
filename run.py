@@ -209,7 +209,6 @@ def view_vidtable():
 @APP.route('/api/video', methods=['POST'])
 def video_controller():
     data = flask.request.get_json(force=True)
-    print(data)
     video = data['video']
     for v in list_videos():
         if video == v:
