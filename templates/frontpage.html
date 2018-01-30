@@ -27,6 +27,10 @@ i.material-icons {
 .col > .card {
   padding: 0.75rem 0.75rem;
 }
+td > i {
+  cursor: pointer;
+  user-select: none;
+}
     </style>
   </head>
   <body>
@@ -64,13 +68,30 @@ i.material-icons {
             </div>
           </div>
         </div>
-        <div class="card col s12 l6">
+        <div class="card col s12 l6" id="existing_videos">
           {{vidlinks|safe}}
         </div>
       </div>
     </div>
   </body>
   <script>
+// Get the human-oriented file size from the given bytes.
+// From here: https://stackoverflow.com/a/14919494
+function humanFileSize(bytes, si) {
+    var thresh = si ? 1000 : 1024;
+    if(Math.abs(bytes) < thresh) {
+        return bytes + ' B';
+    }
+    var units = si
+        ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
+        : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
+    var u = -1;
+    do {
+        bytes /= thresh;
+        ++u;
+    } while(Math.abs(bytes) >= thresh && u < units.length - 1);
+    return bytes.toFixed(1)+' '+units[u];
+}
 $("#downloadbtn").on('click', ()=>{
   startDownload();
 });
@@ -101,7 +122,6 @@ function updateDownloadStatus() {
   $.ajax({
     url: '/api/current_downloads'
   }).done((data) => {
-    console.log(data);
     let newHtml = "";
     if (!$.isEmptyObject(data)){
       CHECKTIME = 250;
@@ -112,28 +132,70 @@ function updateDownloadStatus() {
         }
 
         let pieces = val['filename'].split('/');
-        let filename = pieces[pieces.length-1];
+        let filename = pieces[pieces.length-1].split('.mp4')[0];
+        let downloaded_so_far = humanFileSize(val['downloaded_bytes'], false);
+        let filesize = humanFileSize(val['total_bytes'], false);
         let progressHtml = `
           <div class="section">
-          <h6>${filename}</h6>
+          <h5>${filename}</h5>
           <p>Time till complete: ${val['_eta_str']}
+          <p>Video source: <a href="${key}">${key}</a></p>
+          <p>On-disk size: ${downloaded_so_far} / ${filesize}
           <div class="progress">
             <div class="determinate" style="width: ${val['_percent_str']}"></div>
           </div>
           </div>`;
         newHtml += progressHtml;
       }
-      statusDiv.html(newHtml);
     } else {
       CHECKTIME = 1000;
-      statusDiv.html("<p> Nothing downloading right now...</p>");
+      newHtml = "<p> Nothing downloading right now...</p>";
+    }
+    if (statusDiv.html() != newHtml){
+      statusDiv.html(newHtml);
     }
     window.setTimeout(updateDownloadStatus, CHECKTIME);
   });
 }
 
+function registerDeleteHandlers() {
+  let rows = $('#existing_videos > table > tbody > tr');
+  rows.each((index, row) => {
+    let delicon = $($(row).find('td[filename]')[0]);
+    delicon.on('click', ()=>{
+      window.delicon = delicon;
+      let filename = delicon[0].attributes['filename'].value;
+      $.ajax({
+        url: '/api/video',
+        data: JSON.stringify({'video': filename}),
+        method: 'POST',
+        'contentType': 'application/json',
+      }).done(()=>{
+        $(row).fadeOut();
+      }).fail((err)=>{
+        console.log(err);
+      });
+    });
+  });
+}
+
+function updateCurrentVideos() {
+  let existingVids = $('#existing_videos');
+  $.ajax({
+    url: '/api/video_table'
+  }).done((data) => {
+    if (existingVids.html().trim() != data.trim()){
+      existingVids.html(data);
+    }
+    registerDeleteHandlers();
+    window.setTimeout(updateCurrentVideos, 1000);
+  });
+}
+
 function main() {
   updateDownloadStatus();
+  updateCurrentVideos();
+  registerDeleteHandlers();
 }
 
 $(main);

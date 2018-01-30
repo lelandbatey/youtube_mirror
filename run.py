@@ -4,6 +4,7 @@ import youtube_dl
 import flask
 
 import os.path
+import hashlib
 import time
 import json
 import sys
@@ -33,7 +34,19 @@ def concurrent(f):
         t.daemon = True
         t.start()
         return rv
+
     return rv
+
+
+def human_readable_size(size, decimal_places=1):
+    '''Takes a number of bytes and returns a string representing the "human
+    version" of that file size.'''
+    for unit in ['', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024.0:
+            break
+        size /= 1024.0
+    numfmt = '{{:.{}f}} {{}}'.format(decimal_places)
+    return numfmt.format(size, unit)
 
 
 class date_handler(json.JSONEncoder):
@@ -70,13 +83,6 @@ class LoggerHook(object):
         print(msg)
 
 
-def hook(d):
-    if d['status'] == 'finished':
-        print('Done downloading')
-    else:
-        jp(d)
-
-
 ### Stuff for downloading the video asynchronously via threads ###
 DL_LOCATION = "./static/"
 DL_STATUSES = dict()
@@ -92,6 +98,7 @@ def make_vidupdater(url):
         DL_STATUSES[url] = data
         if data['status'] == 'finished':
             del DL_STATUSES[url]
+
     return update_status
 
 
@@ -100,7 +107,7 @@ def download_video(url):
     global DL_STATUSES
     global DL_LOCATION
     DL_STATUSES[url] = dict()
-    output_loc = "{}%(title)s.%(ext)s".format(DL_LOCATION)
+    output_loc = "{}%(title)s__%(id)s.%(ext)s".format(DL_LOCATION)
     ydl_opts = {
         'logger': LoggerHook(),
         'progress_hooks': [make_vidupdater(url)],
@@ -116,33 +123,77 @@ def list_videos():
     '''Returns a list of all .mp4 files in the current folder, sorted by date
     since that file was modified.'''
     global DL_LOCATION
-    videos = [os.path.join(DL_LOCATION, path) for path in os.listdir(DL_LOCATION) if path.endswith('.mp4')]
+    videos = [
+        os.path.join(DL_LOCATION, path) for path in os.listdir(DL_LOCATION)
+        if path.endswith('.mp4')
+    ]
     videos = sorted(videos, key=os.path.getctime)[::-1]
     return videos
 
+
 APP = flask.Flask(__name__)
+
 
 def generate_video_table():
     vids = list_videos()
     rows = []
-    base = "<table><thead><tr><th>Downloaded videos</th></tr></thead><tbody>{}</tbody></table>"
+    base = '''
+        <table>
+            <thead>
+                <tr>
+                    <th>Downloaded videos</th>
+                    <th>File size</th>
+                </tr>
+            </thead>
+            <tbody>
+                {}
+            </tbody>
+        </table>'''
     for v in vids:
-            rows.append('<tr><td><a href="{}">{}</a><td></tr>'.format(v, os.path.basename(v)))
+        basename = '<td><a href="{}">{}</a></td>'.format(
+            v, os.path.basename(v))
+        filesize = '<td>{}</td>'.format(
+            human_readable_size(os.path.getsize(v)))
+        deletebutton = '<td filename="{}"><i class="material-icons" style="color: crimson;">delete_forever</i></td>'
+        deletebutton = deletebutton.format(v)
+        rows.append('<tr>{}</tr>'.format('\n'.join([basename, filesize, deletebutton])))
     return base.format("\n".join(rows))
 
 
 @APP.route('/')
 def root():
-    return flask.render_template('frontpage.html', vidlinks=generate_video_table())
+    return flask.render_template(
+        'frontpage.html', vidlinks=generate_video_table())
+
 
 @APP.route('/api/current_downloads')
 def view_statuses():
     global DL_STATUSES
+    testdat = {
+        "https://www.youtube.com/watch?v=NzHkMcUErgE": {
+            "_eta_str": "00:57",
+            "_percent_str": " 13.9%",
+            "_speed_str": " 6.04MiB/s",
+            "_total_bytes_str": "404.31MiB",
+            "downloaded_bytes": 58719232,
+            "elapsed": 9.275935649871826,
+            "eta": 57,
+            "filename": "./static/Dice Friends \u2014 Escape from Semolo Plateau Ep2.mp4",
+            "speed": 6330275.911391362,
+            "status": "downloading",
+            "tmpfilename": "./static/Dice Friends \u2014 Escape from Semolo Plateau Ep2.mp4.part",
+            "total_bytes": 423951827
+        }
+    }
+    # return flask.jsonify(testdat)
     return flask.jsonify(DL_STATUSES)
+
 
 @APP.route('/api/finished_downloads')
 def view_vidlist():
     return flask.jsonify(list_videos())
+
+
 @APP.route('/api/start_download', methods=['POST'])
 def start_download():
     data = flask.request.get_json(force=True)
@@ -151,16 +202,26 @@ def start_download():
         download_video(url)
     return ""
 
+@APP.route('/api/video_table')
+def view_vidtable():
+    return generate_video_table()
+
+@APP.route('/api/video', methods=['POST'])
+def video_controller():
+    data = flask.request.get_json(force=True)
+    print(data)
+    video = data['video']
+    for v in list_videos():
+        if video == v:
+            os.remove(v)
+    return ''
+
 def main():
     if len(sys.argv) < 2:
         print("Launching flask service")
         APP.debug = True
         APP.run(host='0.0.0.0', port=5000)
         return
-    # ydl_opts = {'logger': LoggerHook(), 'progress_hooks': [hook]}
-    # with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-        # ydl.download([sys.argv[1]])
-    # jp(list_videos())
     download_video(sys.argv[1])
     while True:
         time.sleep(1)
