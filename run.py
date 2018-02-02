@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import youtube_dl
 import flask
 
+import urllib.parse
 import os.path
 import hashlib
 import time
@@ -111,12 +112,16 @@ def download_video(url):
     ydl_opts = {
         'logger': LoggerHook(),
         'progress_hooks': [make_vidupdater(url)],
-        'format': 'best[ext=mp4]',
+        'format': 'bestvideo+bestaudio/best[ext=mp5]',
         "outtmpl": output_loc
     }
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         print("Beginning the video download")
-        ydl.download([url])
+        try:
+            ydl.download([url])
+        except Exception as e:
+            del DL_STATUSES[url]
+            raise e
 
 
 def list_videos():
@@ -125,7 +130,7 @@ def list_videos():
     global DL_LOCATION
     videos = [
         os.path.join(DL_LOCATION, path) for path in os.listdir(DL_LOCATION)
-        if path.endswith('.mp4')
+        if path.endswith('.mp4') or path.endswith('.mkv')
     ]
     videos = sorted(videos, key=os.path.getctime)[::-1]
     return videos
@@ -151,12 +156,13 @@ def generate_video_table():
         </table>'''
     for v in vids:
         basename = '<td><a href="{}">{}</a></td>'.format(
-            v, os.path.basename(v))
+            urllib.parse.quote(v), os.path.basename(v))
         filesize = '<td>{}</td>'.format(
             human_readable_size(os.path.getsize(v)))
         deletebutton = '<td filename="{}"><i class="material-icons" style="color: crimson;">delete_forever</i></td>'
         deletebutton = deletebutton.format(v)
-        rows.append('<tr>{}</tr>'.format('\n'.join([basename, filesize, deletebutton])))
+        rows.append('<tr>{}</tr>'.format('\n'.join(
+            [basename, filesize, deletebutton])))
     return base.format("\n".join(rows))
 
 
@@ -202,9 +208,11 @@ def start_download():
         download_video(url)
     return ""
 
+
 @APP.route('/api/video_table')
 def view_vidtable():
     return generate_video_table()
+
 
 @APP.route('/api/video', methods=['POST'])
 def video_controller():
@@ -214,6 +222,7 @@ def video_controller():
         if video == v:
             os.remove(v)
     return ''
+
 
 def main():
     if len(sys.argv) < 2:
